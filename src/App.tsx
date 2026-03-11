@@ -5,7 +5,11 @@ import Join from './components/Join';
 import Chat from './components/Chat';
 
 // Connect to the same host that serves the page
-const socket: Socket = io();
+const socket: Socket = io({
+  path: '/socket.io/',
+  transports: ['polling', 'websocket'],
+  autoConnect: true,
+});
 
 export default function App() {
   const [isConnected, setIsConnected] = useState(socket.connected);
@@ -13,16 +17,31 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    function onConnect() {
+    // If already connected by the time useEffect runs
+    if (socket.connected) {
       setIsConnected(true);
+      setError(null);
+    }
+
+    function onConnect() {
+      console.log('Socket connected:', socket.id);
+      setIsConnected(true);
+      setError(null);
     }
 
     function onDisconnect() {
+      console.log('Socket disconnected');
       setIsConnected(false);
       setIsJoined(false);
       setCurrentUser(null);
+    }
+
+    function onConnectError(err: Error) {
+      console.error('Socket connection error:', err);
+      setError(err.message);
     }
 
     function onInit(data: { users: User[], messages: Message[] }) {
@@ -58,6 +77,7 @@ export default function App() {
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    socket.on('connect_error', onConnectError);
     socket.on('init', onInit);
     socket.on('userJoined', onUserJoined);
     socket.on('userLeft', onUserLeft);
@@ -66,6 +86,7 @@ export default function App() {
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      socket.off('connect_error', onConnectError);
       socket.off('init', onInit);
       socket.off('userJoined', onUserJoined);
       socket.off('userLeft', onUserLeft);
@@ -87,6 +108,12 @@ export default function App() {
         <div className="flex flex-col items-center space-y-4">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
           <p className="text-zinc-400 font-medium">Connecting to server...</p>
+          {error && (
+            <div className="mt-4 p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 max-w-md text-center">
+              <p className="font-semibold mb-1">Connection Error</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
         </div>
       </div>
     );
